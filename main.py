@@ -1,7 +1,7 @@
 import time
 import requests
 import openai
-import os
+import yaml
 from SREChain import SREChain
 
 def get_messages():
@@ -51,8 +51,8 @@ def get_messages():
     
     return "\n".join(messages)
 
-def compose_reply_no_migrations(messages, problem_service):
-    client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+def compose_reply_no_migrations(messages, problem_service, key):
+    client = openai.OpenAI(api_key=key)
 
     prompt = f"""
     You are a site reliability engineer responding to a developers' message. The developers reported issues with the "{problem_service}" service. Based on the given messages, explain that no recent migrations affected this service and suggest troubleshooting alternatives.
@@ -73,8 +73,8 @@ def compose_reply_no_migrations(messages, problem_service):
     reply = completion.choices[0].message.content.strip()
     return reply
 
-def compose_reply_with_migrations(messages, problem_service):
-    client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+def compose_reply_with_migrations(messages, problem_service, key):
+    client = openai.OpenAI(api_key=key)
 
     prompt = f"""
     You are a site reliability engineer responding to a developers' message. The developers reported issues with the "{problem_service}" service. Based on the given messages, explain which objects were migrated for which service, indicate that you have made the change, and ask them to let you know if the issue is resolved.
@@ -141,10 +141,31 @@ def send_reply(reply_text):
     
     return response.json()
 
+def migrate_object(key):
+    if not key or not source_bucket or not destination_bucket:
+        return {"status": "error", "message": "Missing 'key', 'source_bucket', or 'destination_bucket'"}
+    
+    # look up in table to get where object is based on key, this will give us the buckets and platform
+
+    try:
+        if platform == 0:
+            move_object_s3_to_wasabi(source_bucket, key, destination_bucket, f'/tmp/{key}')
+        elif platform == 1:
+            move_object_wasabi_to_s3(source_bucket, key, destination_bucket, f'/tmp/{key}')
+        migration_status = "success"
+    except ClientError as e:
+        return {"status": "error", "message": str(e)}
+
+    return {"status": migration_status}
+
 def main():
     # Create an instance of SREChain
     sre_chain = SREChain()
     service_keys_str = []
+    with open('config.yaml', 'r') as file:
+      config = yaml.safe_load(file)
+    
+    openai_config = config['openai']
 
     try:
         messages = get_messages()
@@ -187,9 +208,9 @@ def main():
         print(f"An error occurred: {e}")
 
     if len(service_keys_str) == 0:
-        reply = compose_reply_no_migrations(messages, "Authentication Service")
+        reply = compose_reply_no_migrations(messages, "Authentication Service", openai_config['api_key'])
     else:
-        reply = compose_reply_with_migrations(messages, "Authentication Service")
+        reply = compose_reply_with_migrations(messages, "Authentication Service", openai_config['api_key'])
 
     print("Generated Reply:", reply)
     send_reply_response = send_reply(reply)

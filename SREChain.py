@@ -1,6 +1,5 @@
 import openai
 import logging
-from dotenv import load_dotenv
 from langchain.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.pydantic_v1 import BaseModel, Field
@@ -8,8 +7,12 @@ from langchain.chains import LLMChain
 from langchain.llms import OpenAI
 import os
 from datetime import datetime
+import yaml
 
-load_dotenv()
+with open('config.yaml', 'r') as file:
+      config = yaml.safe_load(file)
+    
+openai_config = config['openai']
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -30,7 +33,7 @@ def sre_prompt_generator(template, pydantic_object):
 
 class SREChain:
     def __init__(self):
-        self.api_key = os.getenv('OPENAI_API_KEY')
+        self.api_key = openai_config['api_key']
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY environment variable is not set")
         
