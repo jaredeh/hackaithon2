@@ -1,3 +1,5 @@
 venv/
 __pycache__/
 tinygrad/
+data/
+.ipynb_checkpoints/
