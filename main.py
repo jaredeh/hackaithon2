@@ -141,22 +141,6 @@ def send_reply(reply_text):
     
     return response.json()
 
-def migrate_object(key):
-    if not key or not source_bucket or not destination_bucket:
-        return {"status": "error", "message": "Missing 'key', 'source_bucket', or 'destination_bucket'"}
-    
-    # look up in table to get where object is based on key, this will give us the buckets and platform
-
-    try:
-        if platform == 0:
-            move_object_s3_to_wasabi(source_bucket, key, destination_bucket, f'/tmp/{key}')
-        elif platform == 1:
-            move_object_wasabi_to_s3(source_bucket, key, destination_bucket, f'/tmp/{key}')
-        migration_status = "success"
-    except ClientError as e:
-        return {"status": "error", "message": str(e)}
-
-    return {"status": migration_status}
 
 def main():
     # Create an instance of SREChain
