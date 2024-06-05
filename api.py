@@ -6,6 +6,7 @@ from botocore.exceptions import ClientError
 import os
 import yaml
 import json
+from stats import StorageStats
 
 app = Flask(__name__)
 
@@ -33,6 +34,9 @@ wasabi_client = boto3.client(
     aws_access_key_id=wasabi_config['access_key_id'],
     aws_secret_access_key=wasabi_config['secret_access_key']
 )
+
+# Stats collector
+stats = StorageStats()
 
 def download_from_s3(bucket_name, object_name, file_path):
     try:
@@ -192,16 +196,24 @@ def migrate_object():
     key = data.get('key')
     platform = data.get('platform')
 
+    # hack for derek who doesn't know where it is
+    if platform == 2:
+        if stats.platform(key) == 0:
+            platform = 1
+        else:
+            platform = 0
+
     try:
-        if platform == 0:
+        if platform == 1:
             # Move object from AWS S3 to Wasabi
             move_object_s3_to_wasabi("hackaithon", key, "hackaithon-wasabi", f'/tmp/{key}') 
-        elif platform == 1:
+        elif platform == 0:
             move_object_wasabi_to_s3("hackaithon-wasabi", key, "hackaithon", f'/tmp/{key}')
         migration_status = "success"
     except ClientError as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+    stats.log_migration(key)
     # Return the status of the migration
     return jsonify({"status": migration_status}), 200
 
@@ -213,7 +225,7 @@ def get_object():
     
     # look up where object is based on key and service, this will give us the bucket and platform
 
-    platform = 0
+    platform = stats.platform(key)
     bucket = 'hackaithon'
     file_path = f'./apps/{service}/static/{key}'
 
@@ -225,9 +237,7 @@ def get_object():
     except ClientError as e:
         return jsonify({"status": "error", "message": str(e)}), 500
     
-    # run little agent
-    
-    # return file data
+    stats.log_get(key,service)
 
     print(f"Returning file path: {file_path}")
 
