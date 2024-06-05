@@ -244,4 +244,8 @@ def get_object():
     return jsonify({"file_path": file_path}), 200
 
 if __name__ == '__main__':
+    upload_to_s3("hackaithon", "lego-batman.jpeg", "./apps/batman/templates/lego-batman.jpeg")
+    upload_to_s3("hackaithon", "lego-superman.jpeg", "./apps/superman/templates/lego-superman.jpeg")
+    delete_from_wasabi("hackaithon-wasabi", "lego-batman.jpeg")
+    delete_from_wasabi("hackaithon-wasabi", "lego-superman.jpeg")
     app.run(debug=True)

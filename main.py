@@ -4,8 +4,11 @@ import requests
 import openai
 import yaml
 from SREChain import SREChain
+from botocore.exceptions import NoCredentialsError, ClientError
 
-def get_messages():
+
+
+def get_messages(auth):
     url = 'https://api.gluegroups.com/graphql'
     headers = {
         'Accept-Encoding': 'gzip, deflate, br',
@@ -14,7 +17,7 @@ def get_messages():
         'Connection': 'keep-alive',
         'DNT': '1',
         'Origin': 'https://api.gluegroups.com',
-        'Authorization': 'Bearer eyJhbGciOiJFUzI1NiIsImtpZCI6IlUwTEYzaVNJcEt0SldkSV9MUmIxWThxYXZSenQwT0VnSXJiQ0FjcF9lV3ciLCJ0eXAiOiJKV1QifQ.eyJhenAiOiIyYjlhNDVkNy1mZDEyLTQ0ZmUtOTQ3MC1jNzk1ZDNkNTc2M2EiLCJleHAiOjE3MTc1NjIzNTAsImlhdCI6MTcxNzU1NTE1MCwiaXNzIjoiZ2x1ZS1hcGkiLCJuYmYiOjE3MTc1NTUxNTAsInNjb3BlIjoiZmlyc3RfcGFydHkiLCJzdWIiOiIyaFI0Y0FQdVFTdmY1UUs0MXp4UnV0SnYwSUIifQ.q0GqEx6Lfwq_e1XXH7h5DO1K1r_bRqmCLJQrx19SVyhXdvlDT4IXIT9NtrvGHCJNq8qPDrzkOTGC0jW1eucASw'
+        'Authorization': f'Bearer {auth}'
     }
     data = {
         "query": """
@@ -74,7 +77,7 @@ def compose_reply_no_migrations(messages, problem_service, key):
     reply = completion.choices[0].message.content.strip()
     return reply
 
-def compose_reply_with_migrations(messages, problem_service, key):
+def compose_reply_with_migrations(messages, problem_service, key, migrated_objects):
     client = openai.OpenAI(api_key=key)
 
     prompt = f"""
@@ -84,7 +87,7 @@ def compose_reply_with_migrations(messages, problem_service, key):
     {messages}
 
     Migrated Objects:
-    - Object 1: Service 1
+    {migrated_objects}
 
     Reply:
     """
@@ -99,7 +102,7 @@ def compose_reply_with_migrations(messages, problem_service, key):
     reply = completion.choices[0].message.content.strip()
     return reply
 
-def send_reply(reply_text):
+def send_reply(reply_text, auth):
     url = 'https://api.gluegroups.com/graphql'
     headers = {
         'Accept-Encoding': 'gzip, deflate, br',
@@ -108,7 +111,7 @@ def send_reply(reply_text):
         'Connection': 'keep-alive',
         'DNT': '1',
         'Origin': 'https://api.gluegroups.com',
-        'Authorization': 'Bearer eyJhbGciOiJFUzI1NiIsImtpZCI6IlUwTEYzaVNJcEt0SldkSV9MUmIxWThxYXZSenQwT0VnSXJiQ0FjcF9lV3ciLCJ0eXAiOiJKV1QifQ.eyJhenAiOiIyYjlhNDVkNy1mZDEyLTQ0ZmUtOTQ3MC1jNzk1ZDNkNTc2M2EiLCJleHAiOjE3MTc1NjIzNTAsImlhdCI6MTcxNzU1NTE1MCwiaXNzIjoiZ2x1ZS1hcGkiLCJuYmYiOjE3MTc1NTUxNTAsInNjb3BlIjoiZmlyc3RfcGFydHkiLCJzdWIiOiIyaFI0Y0FQdVFTdmY1UUs0MXp4UnV0SnYwSUIifQ.q0GqEx6Lfwq_e1XXH7h5DO1K1r_bRqmCLJQrx19SVyhXdvlDT4IXIT9NtrvGHCJNq8qPDrzkOTGC0jW1eucASw'
+        'Authorization': f'Bearer {auth}'
     }
     data = {
         "query": """
@@ -152,53 +155,59 @@ def main():
     
     openai_config = config['openai']
 
-    try:
-        messages = get_messages()
-    except requests.exceptions.RequestException as e:
-        print(f"Failed to get messages: {e}")
-        return
+    glue_config = config['glue']
 
-    # Run the SREChain and get the response
-    response = sre_chain.run_chain(messages)
-    print("SREChain Response:", response)
-    response = None
+    curr_messages = []
 
-    # Make a request to /api/services with the response from SREChain
-    try:
-        services_response = requests.post(
-            "http://127.0.0.1:5000/list",
-            json={"filter_by_migrations": response}
-        )
-        services_response.raise_for_status()
-        service_keys = services_response.json()
-        service_keys_str = jsonify({"key": service_keys['key']}, {"platform": service_keys['platform']})
-        print("Services Response:", service_keys_str)
+    while(True):
 
-        # Pick one of the generated keys and test the /api/migrate endpoint
-        if services_response.status_code == 200:
-            keys = services_response.json()
-            if keys:
-                key = keys[0]['key']
-                migrate_response = requests.post(
-                    "http://127.0.0.1:5000/migrate",
-                    json={
-                        "key": key,
-                        "platform": 0
-                    }
-                )
-                migrate_response.raise_for_status()
-                print("Migrate Response:", migrate_response.json())
-    except requests.exceptions.RequestException as e:
-        print(f"An error occurred: {e}")
+      try:
+          messages = get_messages(glue_config['auth'])
+          if messages == curr_messages:
+              continue
+      except requests.exceptions.RequestException as e:
+          print(f"Failed to get messages: {e}")
+          return
 
-    if len(service_keys_str) == 0:
-        reply = compose_reply_no_migrations(messages, response['service'], openai_config['api_key'])
-    else:
-        reply = compose_reply_with_migrations(messages, response['service'], openai_config['api_key'])
+      # Run the SREChain and get the response
+      response = sre_chain.run_chain(messages)
+      print("SREChain Response:", response)
+      response = None
 
-    print("Generated Reply:", reply)
-    send_reply_response = send_reply(reply)
-    print("Send Reply Response:", send_reply_response)
+      try:
+          services_response = requests.post(
+              "http://127.0.0.1:5000/list",
+              json={"filter_by_migrations": response}
+          )
+          services_response.raise_for_status()
+          services_response_json = services_response.json()
+          print("Services Response:", services_response_json)
+
+          if services_response_json:
+              for item in services_response_json:
+                  key = item['key']
+                  platform = item['platform']
+                  migrate_response = requests.post(
+                      "http://127.0.0.1:5000/migrate",
+                      json={
+                          "key": key,
+                          "platform": platform
+                      }
+                  )
+                  migrate_response.raise_for_status()
+                  print("Migrate Response:", migrate_response.json())
+      except requests.exceptions.RequestException as e:
+          print(f"An error occurred: {e}")
+
+      if len(service_keys_str) == 0:
+          reply = compose_reply_no_migrations(messages, response['service'], openai_config['api_key'])
+      else:
+          reply = compose_reply_with_migrations(messages, response['service'], openai_config['api_key'], migrated_objects=migrate_response.json())
+
+      print("Generated Reply:", reply)
+      send_reply_response = send_reply(reply, glue_config['auth'])
+      print("Send Reply Response:", send_reply_response)
+      time.sleep(2)
 
 if __name__ == "__main__":
     main()
