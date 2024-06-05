@@ -1,4 +1,5 @@
 import time
+from flask import jsonify
 import requests
 import openai
 import yaml
@@ -160,6 +161,7 @@ def main():
     # Run the SREChain and get the response
     response = sre_chain.run_chain(messages)
     print("SREChain Response:", response)
+    response = None
 
     # Make a request to /api/services with the response from SREChain
     try:
@@ -169,7 +171,7 @@ def main():
         )
         services_response.raise_for_status()
         service_keys = services_response.json()
-        service_keys_str = [str(key['key']) for key in service_keys]
+        service_keys_str = jsonify({"key": service_keys['key']}, {"platform": service_keys['platform']})
         print("Services Response:", service_keys_str)
 
         # Pick one of the generated keys and test the /api/migrate endpoint
@@ -190,9 +192,9 @@ def main():
         print(f"An error occurred: {e}")
 
     if len(service_keys_str) == 0:
-        reply = compose_reply_no_migrations(messages, "Authentication Service", openai_config['api_key'])
+        reply = compose_reply_no_migrations(messages, response['service'], openai_config['api_key'])
     else:
-        reply = compose_reply_with_migrations(messages, "Authentication Service", openai_config['api_key'])
+        reply = compose_reply_with_migrations(messages, response['service'], openai_config['api_key'])
 
     print("Generated Reply:", reply)
     send_reply_response = send_reply(reply)

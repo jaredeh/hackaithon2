@@ -179,9 +179,8 @@ def handle_services():
         return jsonify(matching_keys), 200
 
     else:
-        
-        return jsonify({{"key": "lego-batman.jpeg", "platform": 0}, 
-        {"key": "lego-superman.jpeg", "platform": 0}}), 200
+        return jsonify([{"key": "lego-batman.jpeg", "platform": 0}, 
+        {"key": "lego-superman.jpeg", "platform": 0}]), 200
     
     
 @app.route('/migrate', methods=['POST'])
