@@ -181,15 +181,15 @@ def get_object():
     
     # look up where object is based on key and service, this will give us the bucket and platform
 
-    # # Validate the inputs
-    # if not key or not bucket or not platform:
-    #     return jsonify({"status": "error", "message": "Missing 'key', 'bucket', or 'platform'"}), 400
+    platform = 0
+    bucket = 'hackaithon'
+    file_path = f'/{service}/{key}'
 
     try:
         if platform == 0:
-            download_from_s3(bucket, key, f'/tmp/{key}')
+            download_from_s3(bucket, key, file_path)
         elif platform == 1:
-            download_from_wasabi(bucket, key, f'/tmp/{key}')
+            download_from_wasabi(bucket, key, file_path)
     except ClientError as e:
         return jsonify({"status": "error", "message": str(e)}), 500
     
@@ -197,7 +197,7 @@ def get_object():
     
     # return file data
 
-    return jsonify({"status": "success"}), 200
+    return jsonify({"file_path": file_path}), 200
 
 if __name__ == '__main__':
     app.run(debug=True)
