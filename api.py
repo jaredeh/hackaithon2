@@ -5,6 +5,7 @@ import boto3
 from botocore.exceptions import ClientError
 import os
 import yaml
+import json
 
 app = Flask(__name__)
 
@@ -109,6 +110,44 @@ def move_object_wasabi_to_s3(wasabi_bucket_name, wasabi_object_name, aws_bucket_
     # Optionally delete from Wasabi
     delete_from_wasabi(wasabi_bucket_name, wasabi_object_name)
 
+def list_aws_s3_objects(bucket_name):
+
+    # List all objects in the specified bucket
+    objects = aws_s3_client.list_objects_v2(Bucket=bucket_name)
+    
+    # Prepare the result list
+    result = []
+
+    # Extract object keys and append to the result list
+    if 'Contents' in objects:
+        for obj in objects['Contents']:
+            result.append({
+                'key': obj['Key'],
+                'platform': 0  # 0 for AWS
+            })
+    
+    # Convert the result list to a JSON string
+    return json.dumps(result)
+
+def list_wasabi_s3_objects(bucket_name):
+
+    # List all objects in the specified bucket
+    objects = wasabi_client.list_objects_v2(Bucket=bucket_name)
+    
+    # Prepare the result list
+    result = []
+
+    # Extract object keys and append to the result list
+    if 'Contents' in objects:
+        for obj in objects['Contents']:
+            result.append({
+                'key': obj['Key'],
+                'platform': 1  # 1 for Wasabi
+            })
+    
+    # Convert the result list to a JSON string
+    return json.dumps(result)
+
 @app.route('/list', methods=['POST'])
 def handle_services():
     # Parse the incoming JSON data
@@ -175,15 +214,15 @@ def migrate_object():
 
 @app.route('/get', methods=['POST'])
 def get_object():
-    # Parse the incoming query parameters
-    key = request.args.get('key')
-    service = request.args.get('service')
+    data = request.get_json()
+    key = data.get('key')
+    service = data.get('service')
     
     # look up where object is based on key and service, this will give us the bucket and platform
 
     platform = 0
     bucket = 'hackaithon'
-    file_path = f'/{service}/{key}'
+    file_path = f'./apps/{service}/{key}'
 
     try:
         if platform == 0:
@@ -196,6 +235,8 @@ def get_object():
     # run little agent
     
     # return file data
+
+    print(f"Returning file path: {file_path}")
 
     return jsonify({"file_path": file_path}), 200
 
