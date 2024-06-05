@@ -192,19 +192,14 @@ def migrate_object():
 
     # Extract the migration fields
     key = data.get('key')
-
-   # look up where object is based on key,  this will give us the buckets and platform
-
-    # Validate the inputs
-    if not key or not source_bucket or not destination_bucket:
-        return jsonify({"status": "error", "message": "Missing 'key', 'source_bucket', or 'destination_bucket'"}), 400
+    platform = data.get('platform')
 
     try:
         if platform == 0:
             # Move object from AWS S3 to Wasabi
-            move_object_s3_to_wasabi(source_bucket, key, destination_bucket, f'/tmp/{key}') 
+            move_object_s3_to_wasabi("hackaithon", key, "hackaithon-wasabi", f'/tmp/{key}') 
         elif platform == 1:
-            move_object_wasabi_to_s3(source_bucket, key, destination_bucket, f'/tmp/{key}')
+            move_object_wasabi_to_s3("hackaithon-wasabi", key, "hackaithon", f'/tmp/{key}')
         migration_status = "success"
     except ClientError as e:
         return jsonify({"status": "error", "message": str(e)}), 500

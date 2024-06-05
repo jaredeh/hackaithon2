@@ -7,10 +7,6 @@ app = Flask(__name__)
 @app.route('/')
 def index():
     response = requests.post("http://127.0.0.1:5000/get", json={"key": "lego-superman.jpeg", "service": "superman"})
-
-    print(f"Response status code: {response.status_code}")
-    print(f"Response text: {response.text}")
-    
     
     data = response.json()  # This is where the JSONDecodeError can occur
     print(data)
