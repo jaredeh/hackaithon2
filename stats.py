@@ -6,7 +6,7 @@ class StorageStats():
 
     def __init__(self, services={"superman": 1, "batman": 7}, threshold=0.5):
         self.model = SimpleFNN(6,1)
-        self.model.load('output/20240605094642.safe')
+        self.model.load('models/20240605094642.safe')
         self.stats = {} #basic key info
         self.accesses = [] #access log
         self.migrations = [] #migration log
