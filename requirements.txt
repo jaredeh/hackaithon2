@@ -1,0 +1,11 @@
+langchain==0.0.354
+langchain_core==0.1.5
+#transformers
+selenium
+jupyter
+pymongo
+pyyaml
+tiktoken
+wrapt_timeout_decorator
+tqdm
+pandas

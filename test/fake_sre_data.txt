@@ -1,0 +1,3 @@
+MESSAGES:
+Developer1: Noticed some performance issues with the storage access times for the Database Service.
+
