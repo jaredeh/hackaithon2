@@ -2,10 +2,15 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Batman</title>
+    <title>{{ title }}</title>
 </head>
 <body>
-    <h1>Batman</h1>
-    <img src="{image}" alt="Batman Image">
+    <h1>{{ title }}</h1>
+    {% if image %}
+        <img src="{{ url_for('static', filename=image.split('static/')[-1]) }}" alt="{{ title }} Image">
+    {% else %}
+        <p>{{ error }}</p>
+    {% endif %}
 </body>
 </html>
+

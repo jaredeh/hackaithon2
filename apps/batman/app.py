@@ -6,9 +6,14 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    response = requests.get("http://127.0.0.1:5000/get", json={"key": "lego-batman.jpeg", "service": "batman"})
-    image = response.json().get('file_path')
+    response = requests.post("http://127.0.0.1:5000/get", json={"key": "lego-batman.jpeg", "service": "batman"})
+    
+    data = response.json()  # This is where the JSONDecodeError can occur
+    print(data)
+
+    image = data.get('file_path')
     return render_template('index.html', image=image, title="Batman")
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
