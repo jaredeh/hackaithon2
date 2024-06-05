@@ -9,3 +9,5 @@ tiktoken
 wrapt_timeout_decorator
 tqdm
 pandas
+openai
+python-dotenv
