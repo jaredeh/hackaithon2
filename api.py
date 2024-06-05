@@ -179,10 +179,9 @@ def handle_services():
         return jsonify(matching_keys), 200
 
     else:
-        # TODO: Query the access log table to find all keys
-        # For now, return hardcoded keys
-        all_keys = generate_fake_keys(10)
-        return jsonify(all_keys), 200
+        
+        return jsonify({{"key": "lego-batman.jpeg", "platform": 0}, 
+        {"key": "lego-superman.jpeg", "platform": 0}}), 200
     
     
 @app.route('/migrate', methods=['POST'])

@@ -181,8 +181,6 @@ def main():
                     "http://127.0.0.1:5000/migrate",
                     json={
                         "key": key,
-                        "source_bucket": "fake-source-bucket",
-                        "destination_bucket": "fake-destination-bucket",
                         "platform": 0
                     }
                 )
