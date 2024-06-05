@@ -58,7 +58,8 @@ class SREChain:
 
         The current time is {current_timestamp}.
         
-        If the messages indicate that there is a problem with any service, the name of the service mentoned and {current_timestamp} should be formatted in a JSON object like this:
+        If the messages indicate that there is a problem with any service, the name of the service mentoned and {current_timestamp} should be formatted in a JSON object like this according to the following instructions.
+        If no services are mentioned, mark the service field as an empty string
         {format_instructions}
         """
 

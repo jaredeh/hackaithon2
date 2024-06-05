@@ -12,3 +12,4 @@ pandas
 openai
 python-dotenv
 Flask
+boto3

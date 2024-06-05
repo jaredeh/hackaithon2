@@ -177,7 +177,8 @@ def main():
                     json={
                         "key": key,
                         "source_bucket": "fake-source-bucket",
-                        "destination_bucket": "fake-destination-bucket"
+                        "destination_bucket": "fake-destination-bucket",
+                        "platform": 0
                     }
                 )
                 migrate_response.raise_for_status()
