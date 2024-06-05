@@ -2,15 +2,21 @@
 from tinygrad import Tensor, nn
 from tinygrad.nn.state import get_parameters
 from tinygrad.nn import optim
-#from extra.training import train
 from tinygrad.engine.jit import TinyJit
-# import torch
-# import torch.nn as nn
-# import torch.optim as optim
 import datetime
 import numpy as np
 from tqdm import trange
-from tinygrad.helpers import CI
+from time import sleep
+import argparse
+import gc
+import os
+import random
+import polars as pl
+
+from model import SimpleFNN
+"""
+This trains the model based on a parquet dataset using the tinygrad framework.
+"""
 
 
 def get_timestamp(timestamp=None):
@@ -33,23 +39,21 @@ def evaluate(model, X_test, Y_test, BS=1, return_predict=False):
       x = Tensor(X_test[i:(i+1)])
       out = model.forward(x) if hasattr(model, 'forward') else model(x)
       Y_test_preds_out[i:(i+1)] = out.numpy()[0]
-    
-    #Y_test_preds = np.argmax(Y_test_preds_out, axis=-1)
     return (Y_test_preds_out - Y_test).mean(), Y_test_preds_out
 
   acc, Y_test_pred = numpy_eval(Y_test)
-  print("test set accuracy is %f" % acc)
+  print("test set error is %f" % acc)
   return (acc, Y_test_pred) if return_predict else acc
 
 
 def train(model, X_train, Y_train, optim, steps, BS=128, lossfn=lambda out,y: out.sparse_categorical_crossentropy(y),
-        noloss=False, allow_jit=True):
+        noloss=False):
 
   def train_step(x, y):
     # network
     out = model.forward(x) if hasattr(model, 'forward') else model(x)
-    print(f"out: {out.realize().numpy()}")
-    print(f"y: {y.realize().numpy()}")
+    # print(f"out: {out.realize().numpy()}")
+    # print(f"y: {y.realize().numpy()}")
     loss = lossfn(out, y)
     optim.zero_grad()
     loss.backward()
@@ -59,7 +63,7 @@ def train(model, X_train, Y_train, optim, steps, BS=128, lossfn=lambda out,y: ou
     accuracy = (out - y).mean()
     return loss.realize(), accuracy.realize()
 
-  if allow_jit: train_step = TinyJit(train_step)
+  train_step = TinyJit(train_step)
 
   with Tensor.train():
     losses, accuracies = [], []
@@ -76,63 +80,6 @@ def train(model, X_train, Y_train, optim, steps, BS=128, lossfn=lambda out,y: ou
         accuracies.append(accuracy)
         t.set_description("loss %.2f accuracy %.2f" % (loss, accuracy))
   return [losses, accuracies]
-
-
-
-# Define the FNN model
-class SimpleFNN1():
-    def __init__(self, dataset_size, output_size):
-        super(SimpleFNN1, self).__init__()
-        self.fc1 = nn.Linear(dataset_size, 64)  # Input layer to hidden layer
-        #self.relu1 = nn.LayerNorm(64)
-        self.fc2 = nn.Linear(64, 32)  # Hidden layer to hidden layer
-        #self.relu2 = nn.LayerNorm(32)
-        self.fc3 = nn.Linear(32, output_size)   # Hidden layer to output layer with one neuron
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = x.relu()
-        x = self.fc2(x)
-        x = x.relu()
-        x = self.fc3(x)
-        return Tensor.sigmoid(x)  # Sigmoid activation for probability
-
-    # def save(self, filename):
-    #     torch.save(self.state_dict(), filename)
-
-# Define the FNN model
-class SimpleFNN():
-    def __init__(self, dataset_size, output_size):
-        self.fc1 = nn.Linear(dataset_size, 28)  # Input layer to hidden layer
-        #self.ln1 = nn.LayerNorm(28)
-        self.fc2 = nn.Linear(28, 14)  # Hidden layer to hidden layer
-        #self.ln2 = nn.LayerNorm(14)
-        self.fc3 = nn.Linear(14, output_size)   # Hidden layer to output layer with one neuron
-
-    def forward(self, x):
-        x = self.fc1(x)
-        #x = self.ln1(x)
-        x = self.fc2(x).relu()
-        #x = self.ln2(x)
-        x = self.fc3(x).sigmoid()
-        return x  # Sigmoid activation for probability
-
-
-#! /usr/bin/python3
-
-from time import sleep
-import argparse
-import gc
-import os
-import random
-import polars as pl
-
-# import torch
-# import torch.nn as nn
-# import torch.optim as optim
-# import torch.onnx
-# from torch.utils.data import DataLoader, TensorDataset
-# from bson import json_util
 
 
 class StorgeTrainer():
@@ -156,17 +103,15 @@ class StorgeTrainer():
 
     def get_x_y(self, sample):
         fname = os.path.join(self.inputdir, sample)
-        # read as polars dataframe
         df = pl.read_parquet(fname)
         df_x = df.select(pl.all().exclude('time_idle'))
         df_y = df.select(pl.col('time_idle'))
-        # convert to numpy arrays
+        # convert to numpy arrays for tinygrad
         x = df_x.to_numpy()
         y = df_y.to_numpy()
-        
         return x,y
 
-    def test_x_y1(self, sample):
+    def test0_x_y(self, sample):
         fname = os.path.join(self.inputdir, sample)
         # read as polars dataframe
         df = pl.read_parquet(fname)
@@ -174,12 +119,14 @@ class StorgeTrainer():
         df =  df.filter(pl.col("last_service") != 7.0)
         print(df)
         df_x = df.select(pl.all().exclude('time_idle'))
+        print(df_x)
+        raise
         df_y = df.select(pl.col('time_idle'))
         x = df_x.to_numpy()
         y = df_y.to_numpy()
         return x,y
 
-    def test_x_y(self, sample):
+    def test1_x_y(self, sample):
         fname = os.path.join(self.inputdir, sample)
         # read as polars dataframe
         df = pl.read_parquet(fname)
@@ -227,11 +174,11 @@ class StorgeTrainer():
         basefilename = os.path.join(self.outputdir, f"{starttime.strftime('%Y%m%d%H%M%S')}")
 
         # Save the trained model if needed
-        model.save(f"{basefilename}.pth")
-
-        # Save the full model
-        model_scripted = torch.jit.script(model)
-        model_scripted.save(f"{basefilename}.pt")
+        model.save(f"{basefilename}.safe")
+        model = self.get_compiled_model(samples[0])
+        self.evaluate(model, evaluating_samples, starttime)
+        model.load(f"{basefilename}.safe")
+        self.evaluate(model, evaluating_samples, starttime)
 
     def get_compiled_model(self, sample):
         x, y = self.get_x_y(sample)
@@ -248,21 +195,7 @@ class StorgeTrainer():
         # print("model done")
         return model
 
-    def print_timing(self, message, starttime, runtime, i, sample_count):
-        try:
-            currentruntime = get_runtime(starttime)
-            laptime = currentruntime - runtime
-            runtime = currentruntime
-            avglap = runtime / (i+1)
-            eta = (sample_count - (i+1)) * avglap
-            print("   {} {}/{} files - time: {} / lap: {} / avg: {} - ETA: {}".format(message, i+1, sample_count, runtime, laptime, avglap, eta))
-            return runtime
-        except BaseException as e:
-            print("   Failed to print stats")
-            print(e)
-
     def fit(self, model, samples, starttime):
-        runtime = datetime.timedelta(0)
         setlength = len(samples)
         # model.to(device)
         parameters = get_parameters(model)
@@ -273,27 +206,22 @@ class StorgeTrainer():
             for i in range(setlength):
                 sample = samples[i]
                 x, y = self.get_x_y(sample)
-                if x.shape[0] != y.shape[0]:
-                    print("   x and y have different lengths {} {}".format(x.shape[0], y.shape[0]))
-                    print("   skipping sample")
-                    continue
                 optimizer = optim.Adam(get_parameters(model), lr=lr)
-                #optimizer = optim.SGD(get_parameters(model), lr=lr, momentum=0.9)
                 train(model, x, y, optimizer, len(x), BS=self.batch_size, lossfn=lossfn)
-                runtime = self.print_timing('fit', starttime, runtime, i, setlength)
             lr /= 1.2
+
     def evaluate(self, model, samples, starttime):
         runtime = datetime.timedelta(0)
 
         setlength = len(samples)
         if (self.max_length > 0) and (self.max_length < setlength):
             setlength = self.max_length
-        x,y = self.test_x_y(samples[0])
+        x,y = self.test1_x_y(samples[0])
         a = evaluate(model,x,y, return_predict=True, BS=1)
         #print(a)
-        x,y = self.test_x_y1(samples[0])
+        x,y = self.test0_x_y(samples[0])
         a = evaluate(model,x,y, return_predict=True, BS=1)
-        print(a)
+        #print(a)
         return model
 
 
