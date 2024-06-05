@@ -217,7 +217,7 @@ def get_object():
 
     platform = 0
     bucket = 'hackaithon'
-    file_path = f'./apps/{service}/{key}'
+    file_path = f'./apps/{service}/static/{key}'
 
     try:
         if platform == 0:
